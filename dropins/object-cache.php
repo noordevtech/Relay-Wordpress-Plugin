@@ -224,15 +224,11 @@ class WP_Object_Cache {
 			'timeout'  => 1.0,
 		);
 
+		// The object-cache.php drop-in is loaded extremely early in wp-settings.php,
+		// before $wpdb and the options API are available. We MUST NOT call get_option()
+		// here. Configuration is read exclusively from wp-config.php constants.
 		$settings = $defaults;
-		if ( function_exists( 'get_option' ) ) {
-			$stored = get_option( 'relay_cache_settings', array() );
-			if ( is_array( $stored ) ) {
-				$settings = array_merge( $defaults, $stored );
-			}
-		}
 
-		// Constants override DB settings, useful for hosts configuring via wp-config.php.
 		if ( defined( 'WP_RELAY_HOST' ) ) {
 			$settings['host'] = WP_RELAY_HOST;
 		}
