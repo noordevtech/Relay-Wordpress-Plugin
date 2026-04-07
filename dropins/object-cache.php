@@ -26,6 +26,7 @@ if ( ! extension_loaded( 'relay' ) || ! class_exists( '\\Relay\\Relay' ) ) {
  */
 function wp_cache_init() {
 	$GLOBALS['wp_object_cache'] = new WP_Object_Cache();
+	return $GLOBALS['wp_object_cache'];
 }
 
 function wp_cache_add( $key, $data, $group = '', $expire = 0 ) {
@@ -247,6 +248,9 @@ class WP_Object_Cache {
 		if ( defined( 'WP_RELAY_PREFIX' ) ) {
 			$settings['prefix'] = WP_RELAY_PREFIX;
 		}
+		if ( defined( 'WP_RELAY_TIMEOUT' ) ) {
+			$settings['timeout'] = WP_RELAY_TIMEOUT;
+		}
 
 		$this->key_prefix = (string) $settings['prefix'];
 
@@ -320,7 +324,11 @@ class WP_Object_Cache {
 		}
 		if ( $this->connected && ! $this->is_non_persistent( $group ) ) {
 			try {
-				$ok = $this->relay->set( $id, $this->maybe_serialize( $data ), array( 'nx', 'ex' => $expire > 0 ? (int) $expire : null ) );
+				$options = array( 'nx' );
+				if ( $expire > 0 ) {
+					$options['ex'] = (int) $expire;
+				}
+				$ok = $this->relay->set( $id, $this->maybe_serialize( $data ), $options );
 				if ( ! $ok ) {
 					// Fall back to EXISTS check.
 					if ( $this->relay->exists( $id ) ) {
@@ -432,6 +440,9 @@ class WP_Object_Cache {
 		$id = $this->build_key( $key, $group );
 		if ( $this->connected && ! $this->is_non_persistent( $group ) ) {
 			try {
+				if ( ! $this->relay->exists( $id ) ) {
+					return false;
+				}
 				$value              = $this->relay->incrBy( $id, (int) $offset );
 				$this->cache[ $id ] = $value;
 				return $value;
@@ -439,7 +450,10 @@ class WP_Object_Cache {
 				return false;
 			}
 		}
-		$value              = isset( $this->cache[ $id ] ) ? (int) $this->cache[ $id ] + (int) $offset : (int) $offset;
+		if ( ! isset( $this->cache[ $id ] ) ) {
+			return false;
+		}
+		$value              = (int) $this->cache[ $id ] + (int) $offset;
 		$this->cache[ $id ] = $value;
 		return $value;
 	}
@@ -448,6 +462,9 @@ class WP_Object_Cache {
 		$id = $this->build_key( $key, $group );
 		if ( $this->connected && ! $this->is_non_persistent( $group ) ) {
 			try {
+				if ( ! $this->relay->exists( $id ) ) {
+					return false;
+				}
 				$value              = $this->relay->decrBy( $id, (int) $offset );
 				$this->cache[ $id ] = $value;
 				return $value;
@@ -455,7 +472,10 @@ class WP_Object_Cache {
 				return false;
 			}
 		}
-		$value              = isset( $this->cache[ $id ] ) ? (int) $this->cache[ $id ] - (int) $offset : 0 - (int) $offset;
+		if ( ! isset( $this->cache[ $id ] ) ) {
+			return false;
+		}
+		$value              = (int) $this->cache[ $id ] - (int) $offset;
 		$this->cache[ $id ] = $value;
 		return $value;
 	}
@@ -512,7 +532,7 @@ class WP_Object_Cache {
 		if ( is_numeric( $data ) || is_string( $data ) ) {
 			return (string) $data;
 		}
-		return 'relay:' . serialize( $data ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
+		return "\x00relay_serialized\x00" . serialize( $data ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
 	}
 
 	/**
@@ -522,8 +542,8 @@ class WP_Object_Cache {
 	 * @return mixed
 	 */
 	protected function maybe_unserialize( $data ) {
-		if ( is_string( $data ) && 0 === strpos( $data, 'relay:' ) ) {
-			return unserialize( substr( $data, 6 ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
+		if ( is_string( $data ) && 0 === strpos( $data, "\x00relay_serialized\x00" ) ) {
+			return unserialize( substr( $data, 18 ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_unserialize
 		}
 		return $data;
 	}

@@ -360,8 +360,11 @@ class Relay_Cache_Plugin {
 			wp_die( esc_html__( 'Unauthorized.', 'relay-cache' ) );
 		}
 		check_admin_referer( 'relay_cache_flush' );
-		wp_cache_flush();
-		$this->set_notice( __( 'Object cache flushed.', 'relay-cache' ), 'success' );
+		if ( wp_cache_flush() ) {
+			$this->set_notice( __( 'Object cache flushed.', 'relay-cache' ), 'success' );
+		} else {
+			$this->set_notice( __( 'Failed to flush object cache.', 'relay-cache' ), 'error' );
+		}
 		wp_safe_redirect( admin_url( 'options-general.php?page=relay-cache' ) );
 		exit;
 	}

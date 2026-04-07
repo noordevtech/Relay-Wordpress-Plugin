@@ -34,6 +34,7 @@ define( 'WP_RELAY_PORT',     6379 );
 define( 'WP_RELAY_PASSWORD', 'secret' );
 define( 'WP_RELAY_DATABASE', 0 );
 define( 'WP_RELAY_PREFIX',   'mysite:' );
+define( 'WP_RELAY_TIMEOUT',  1.0 );
 ```
 
 ## Features
